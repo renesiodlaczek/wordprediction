@@ -86,21 +86,15 @@ memory on the words and phrases that matter most.
 
 ::: {.columns}
 ::: {.column width="55%"}
-<div style="border:1px solid #ccc; border-radius:10px; padding:16px; font-family:sans-serif; box-shadow:0 2px 8px rgba(0,0,0,0.15); background:white;">
-  <div style="font-weight:600; margin-bottom:8px; color:#333;">Next-word predictor</div>
-  <div style="border:1px solid #999; border-radius:6px; padding:10px; color:#333; min-height:2.5em;">i love</div>
-  <div style="margin-top:10px; display:flex; gap:8px;">
-    <span style="border:1px solid #4a7dff; color:#4a7dff; border-radius:16px; padding:4px 14px; font-size:0.9em;">you</span>
-    <span style="border:1px solid #4a7dff; color:#4a7dff; border-radius:16px; padding:4px 14px; font-size:0.9em;">the</span>
-    <span style="border:1px solid #4a7dff; color:#4a7dff; border-radius:16px; padding:4px 14px; font-size:0.9em;">it</span>
-  </div>
-</div>
+![](app_screenshot.png)
 :::
 
 ::: {.column width="45%"}
 Type a phrase &rarr; suggestions update live &rarr; click one to add it.
 
-**Try it yourself:** [live app link — add Connect Cloud URL]
+**Try it yourself:** [Wordprediction App](https://renesiodlaczek-wordprediction.share.connect.posit.cloud/)
+
+ 
 :::
 :::
 
