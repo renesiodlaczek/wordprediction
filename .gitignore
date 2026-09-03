@@ -16,6 +16,8 @@ data/processed/*
 
 report/milestone_report.html
 report/milestone_report_files/
+report/pitch.html
+report/pitch_files/
 
 # rsconnect deployment bookkeeping (account tokens, per-user state)
 rsconnect/
