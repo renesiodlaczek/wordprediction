@@ -5,7 +5,7 @@
 library(stringr)
 library(data.table)
 
-source("R/02_tokenize_clean.R")
+source("scripts/02_tokenize_clean.R")
 
 out_dir <- "data/processed"
 train_df <- as.data.table(readRDS(file.path(out_dir, "train_lines.rds")))

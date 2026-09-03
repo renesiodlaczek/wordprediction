@@ -7,12 +7,12 @@
 #   boundaries). Keeps simple punctuation-free word tokens; numbers are
 #   dropped since they are not useful for a next-*word* predictor.
 # filter_profanity(): drops tokens (or whole rows) matching the static
-#   profanity list in R/profanity_list.csv.
+#   profanity list in scripts/profanity_list.csv.
 
 library(stringr)
 library(data.table)
 
-profanity_words <- read.csv("R/profanity_list.csv", stringsAsFactors = FALSE)$word
+profanity_words <- read.csv("scripts/profanity_list.csv", stringsAsFactors = FALSE)$word
 
 clean_lines <- function(lines) {
   lines |>

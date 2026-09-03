@@ -2,10 +2,17 @@
 #
 # Run with shiny::runApp(".") or the "Run App" button in Positron/RStudio.
 # Expects to run with the working directory at the project root (so
-# "R/..." and "data/processed/..." resolve) -- true by default when this
-# file itself is launched as the app.
+# "scripts/..." and "data/processed/..." resolve) -- true by default when
+# this file itself is launched as the app.
 #
-# Uses the interpolation scorer selected in R/04_ngram_model.R (see
+# NB: the pipeline scripts deliberately live in scripts/, not R/. Shiny
+# auto-sources every .R file in a sibling R/ directory before the app
+# starts (see https://shiny.posit.co/r/articles/build/app-dirs/); putting
+# 01_sample_data.R and friends there caused them to run unintentionally on
+# deploy, crashing the app when they tried to read the (gitignored) raw
+# corpora that don't exist in the deployed environment.
+#
+# Uses the interpolation scorer selected in scripts/04_ngram_model.R (see
 # data/processed/model_config.rds for the tuned lambdas/pruning settings),
 # reapplied here directly against the already-pruned model_*.rds lookup
 # tables. That's a lighter-weight approximation of the scoring used for
@@ -19,7 +26,7 @@ library(bslib)
 library(data.table)
 library(stringr)
 
-source("R/02_tokenize_clean.R")  # provides clean_lines()
+source("scripts/02_tokenize_clean.R")  # provides clean_lines()
 
 model_dir <- "data/processed"
 unigram_tab    <- readRDS(file.path(model_dir, "model_unigram.rds"))

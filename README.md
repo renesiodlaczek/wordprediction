@@ -25,8 +25,18 @@ sentence/paragraph).
 
 ## Pipeline
 
-Scripts in `R/` run in order; each caches its output to `data/processed/`
-(gitignored) so later scripts don't need to re-read the raw files:
+Scripts in `scripts/` run in order; each caches its output to
+`data/processed/` (gitignored) so later scripts don't need to re-read the raw
+files.
+
+**Why `scripts/`, not `R/`:** Shiny automatically sources every `.R` file in
+a sibling `R/` directory before an app starts (a convention for helper code:
+https://shiny.posit.co/r/articles/build/app-dirs/). Since `app.R` lives at the
+project root, naming this directory `R/` caused Connect Cloud to silently run
+`01_sample_data.R` (which reads the raw, gitignored corpora) on every deploy,
+crashing the app before it could start. Keeping the pipeline scripts in
+`scripts/` avoids that; `app.R` still explicitly `source()`s the one file it
+actually needs (`scripts/02_tokenize_clean.R`).
 
 1. **`01_sample_data.R`** — reads the three raw files, reports full-corpus
    summary stats, and draws a random sample of ~1,000,000 lines total
@@ -35,9 +45,10 @@ Scripts in `R/` run in order; each caches its output to `data/processed/`
    for final reported numbers). Outputs: `raw_stats.rds`, `train_lines.rds`,
    `dev_lines.rds`, `test_lines.rds`.
 2. **`02_tokenize_clean.R`** — defines `clean_lines()`, `tokenize_text()`, and
-   `filter_profanity()`. Profanity list: `R/profanity_list.csv` (curated from
-   the `lexicon` package's profanity word lists; no runtime dependency on
-   `lexicon`). Sourced by the scripts below rather than run standalone.
+   `filter_profanity()`. Profanity list: `scripts/profanity_list.csv`
+   (curated from the `lexicon` package's profanity word lists; no runtime
+   dependency on `lexicon`). Sourced by the scripts below (and by `app.R`)
+   rather than run standalone.
 3. **`03_eda.R`** — tokenizes + profanity-filters the training sample, and
    computes/caches the tables behind the report's plots and tables (word
    frequencies, coverage curve, bigram/trigram frequencies, per-source
@@ -59,9 +70,9 @@ Scripts in `R/` run in order; each caches its output to `data/processed/`
 ## Reproducing
 
 ```r
-source("R/01_sample_data.R")
-source("R/03_eda.R")       # sources 02_tokenize_clean.R itself
-source("R/04_ngram_model.R")
+source("scripts/01_sample_data.R")
+source("scripts/03_eda.R")       # sources 02_tokenize_clean.R itself
+source("scripts/04_ngram_model.R")
 ```
 
 Then render the report:

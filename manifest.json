@@ -1010,7 +1010,7 @@
   },
   "files": {
     "app.R": {
-      "checksum": "19af54f12f68598ccbb52d00c06a4d96"
+      "checksum": "a7a054cf30dea5006f04d5dadecb0db9"
     },
     "data/processed/model_bigram.rds": {
       "checksum": "57da3b5467648318c7f0441a179fd5d8"
@@ -1030,10 +1030,10 @@
     "data/processed/model_unigram.rds": {
       "checksum": "9190fc9c90940dbf62cf7ae03f73a768"
     },
-    "R/02_tokenize_clean.R": {
-      "checksum": "d8fea17b7b776ed4706caae36af925b7"
+    "scripts/02_tokenize_clean.R": {
+      "checksum": "73e5ebe7b3091e65337daaa0e551ed74"
     },
-    "R/profanity_list.csv": {
+    "scripts/profanity_list.csv": {
       "checksum": "8dd354e4be47c85d04981eb589d2c74c"
     }
   },

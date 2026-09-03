@@ -21,7 +21,7 @@
 library(data.table)
 library(stringr)
 
-source("R/02_tokenize_clean.R")
+source("scripts/02_tokenize_clean.R")
 
 `%||%` <- function(a, b) if (length(a) == 0 || is.na(a)) b else a
 
