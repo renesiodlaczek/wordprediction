@@ -1,0 +1,22 @@
+data/en_US.news.txt
+data/en_US.twitter.txt
+data/en_US.blogs.txt
+
+# Cached intermediate data/EDA artifacts are gitignored (regenerable via
+# R/01_sample_data.R -> R/03_eda.R -> R/04_ngram_model.R); the final trained
+# model tables the Shiny app depends on are the exception, so they ship with
+# the repo for deployment.
+data/processed/*
+!data/processed/model_unigram.rds
+!data/processed/model_bigram.rds
+!data/processed/model_trigram.rds
+!data/processed/model_fourgram.rds
+!data/processed/model_total_unigrams.rds
+!data/processed/model_config.rds
+
+report/milestone_report.html
+report/milestone_report_files/
+
+# rsconnect deployment bookkeeping (account tokens, per-user state)
+rsconnect/
+*.log

@@ -1,0 +1,249 @@
+---
+title: "Predictive Text Model — Milestone Report"
+subtitle: "Exploratory analysis and modeling plan for a next-word prediction Shiny app"
+format:
+  html:
+    toc: true
+    embed-resources: true
+    code-fold: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(data.table)
+library(ggplot2)
+library(scales)
+
+out_dir <- "../data/processed"
+raw_stats          <- as.data.table(readRDS(file.path(out_dir, "raw_stats.rds")))
+words_per_line      <- readRDS(file.path(out_dir, "eda_words_per_line.rds"))
+unigram_freq        <- readRDS(file.path(out_dir, "eda_unigram_freq.rds"))
+coverage_summary     <- readRDS(file.path(out_dir, "eda_coverage_summary.rds"))
+coverage_curve       <- readRDS(file.path(out_dir, "eda_coverage_curve.rds"))
+bigram_freq          <- readRDS(file.path(out_dir, "eda_bigram_freq.rds"))
+trigram_freq         <- readRDS(file.path(out_dir, "eda_trigram_freq.rds"))
+source_summary       <- readRDS(file.path(out_dir, "eda_source_summary.rds"))
+model_sizes          <- readRDS(file.path(out_dir, "model_sizes.rds"))
+grid_results         <- readRDS(file.path(out_dir, "model_grid_results.rds"))
+lambda_results       <- readRDS(file.path(out_dir, "model_lambda_results.rds"))
+comparison           <- readRDS(file.path(out_dir, "model_comparison.rds"))
+model_config         <- readRDS(file.path(out_dir, "model_config.rds"))
+test_eval            <- readRDS(file.path(out_dir, "model_eval_test.rds"))
+```
+
+## What this project is about
+
+The goal is a Shiny app where a user types a phrase and the app suggests the
+most likely next word — similar to the predictive keyboard on a smartphone.
+This report covers the first stage: understanding the raw text data, cleaning
+it, and building (and sanity-checking) a first, basic prediction model. It's
+written for a general audience — no statistics background required.
+
+## The data
+
+The underlying data are three large collections of English text, scraped from
+the web: Twitter posts, blog posts, and news articles.
+
+```{r raw-stats-table}
+raw_stats[, .(Source = source, `Size (MB)` = file_size_mb,
+              `Lines` = comma(n_lines), `Words` = comma(n_words),
+              `Avg. words/line` = avg_words_per_line)]
+```
+
+Blogs and news articles run around 34–42 words per entry on average, while
+tweets are much shorter (about 13 words), reflecting the platform's length
+limit. Together the three files total over 100 million words — far more than
+needed to build a reliable model, so we work with a large random sample
+(1,000,000 lines, allocated proportionally across the three sources) rather
+than the full data. This keeps computation fast while still being
+representative. That sample is further split into three pieces: 80% for
+building the model's word-count tables, 10% held out to tune settings, and a
+final 10% touched only once, at the end, to report honest performance
+numbers — the same discipline used for any predictive model, so we don't fool
+ourselves about how well it generalizes.
+
+```{r words-per-line-plot}
+#| fig-cap: "Distribution of words per line by source (sample, capped at 80 words for readability)"
+ggplot(words_per_line[N <= 80], aes(x = N)) +
+  geom_histogram(binwidth = 2) +
+  facet_wrap(~source, scales = "free_y") +
+  labs(x = "Words per line", y = "Number of lines") +
+  theme_minimal()
+```
+
+## Cleaning the text
+
+Raw web text is messy. Before counting words, each line is: lower-cased;
+stripped of URLs, @-handles, and hashtag symbols; stripped of punctuation and
+emoji; and split into individual word "tokens." Pure numbers are dropped,
+since they aren't useful things to *predict* as a next word.
+
+The text also contains profanity, which we don't want the app to ever
+suggest. We filter out matches against a list of roughly 500 common English
+profane terms before any word counts are used for prediction. In this sample,
+profanity accounted for about 0.2% of all words — a small but real share, and
+worth screening out.
+
+## What the words look like
+
+A small number of words dominate everyday English. In this sample, just
+**`r coverage_summary[coverage == 0.5, n_words_needed]` distinct words**
+account for half of all the words used, and the top 10 alone are shown below.
+
+```{r top-words-plot}
+#| fig-cap: "15 most frequent words in the sample"
+top_words <- head(unigram_freq[order(-N)], 15)
+ggplot(top_words, aes(x = N, y = reorder(word, N))) +
+  geom_col() +
+  labs(x = "Occurrences", y = NULL) +
+  scale_x_continuous(labels = comma) +
+  theme_minimal()
+```
+
+This "a few words do most of the work" pattern (Zipf's law) is useful for
+building an efficient model: we don't need to keep every rare word to cover
+most of what people actually type.
+
+```{r coverage-table}
+coverage_summary[, .(`Share of all words covered` = percent(coverage),
+                      `Distinct words needed` = comma(n_words_needed))]
+```
+
+```{r coverage-plot}
+#| fig-cap: "Cumulative share of all word occurrences covered by the N most common distinct words"
+ggplot(coverage_curve, aes(x = rank, y = cum_share)) +
+  geom_line() +
+  scale_x_log10(labels = comma) +
+  scale_y_continuous(labels = percent) +
+  labs(x = "Number of distinct words (most frequent first, log scale)",
+       y = "Cumulative share of all word occurrences") +
+  theme_minimal()
+```
+
+Word pairs and triples ("n-grams") show similarly strong patterns — mostly
+functional phrases like "of the" or "one of the" rather than distinctive
+content:
+
+::: {layout-ncol=2}
+```{r top-bigrams}
+head(bigram_freq[order(-N)], 10)[, .(`Word pair` = ngram, Count = comma(N))]
+```
+
+```{r top-trigrams}
+head(trigram_freq[order(-N)], 10)[, .(`Word triple` = ngram, Count = comma(N))]
+```
+:::
+
+## The prediction model
+
+The prediction approach is a classic **n-gram model**: count how often each
+word follows the previous 1, 2, or 3 words in the training text, and use
+those counts to rank candidate next words. Concretely, we built four lookup
+tables — for single words, pairs, triples, and quadruples of words — from the
+cleaned, profanity-filtered sample.
+
+**Handling phrases we've never seen before.** No matter how much text we
+train on, users will type combinations of words that never appeared in the
+training data. We compared two standard strategies for this:
+
+- **Stupid Backoff**: try to match the user's last three words; if that exact
+  three-word phrase was never observed, fall back to the last two words, then
+  the last word, then (if all else fails) simply suggest the most common
+  words overall.
+- **Linear interpolation**: rather than committing to a single "best"
+  context length, blend evidence from all the context lengths that *do*
+  match (single word, pair, triple, and quadruple), weighting longer,
+  more specific contexts more heavily.
+
+Both are simpler and far more memory-efficient than more statistically
+rigorous smoothing methods (such as Katz backoff with Good-Turing
+discounting, or Kneser-Ney smoothing), at the cost of not producing
+mathematically "proper" probabilities — an acceptable tradeoff for a
+responsive, lightweight app, though it does mean the "perplexity" figure
+below should be read as a rough diagnostic rather than a textbook one.
+
+To keep the model small enough to run comfortably in a memory-constrained
+Shiny deployment, we also tune two pruning settings — the minimum number of
+times a phrase must appear to be kept, and how many candidate next-words to
+keep per phrase — on the tuning slice:
+
+```{r grid-search-table}
+grid_results[order(-dev_accuracy), .(`Min. count` = min_count, `Candidates kept per phrase` = top_k,
+             `Tuning accuracy` = percent(dev_accuracy, accuracy = 0.1), `Table rows` = comma(n_rows))]
+```
+
+Requiring a phrase to appear at least twice turns out to matter more than how
+many candidates we keep per phrase — beyond keeping the top 5, extra
+candidates rarely help, because most specific 2-3 word phrases simply don't
+have many different continuations that occur more than once in this amount
+of data. We locked in **minimum count `r model_config$min_count`, top
+`r model_config$top_k` candidates per phrase** based on this.
+
+With pruning settings fixed, we compared Stupid Backoff against linear
+interpolation (with interpolation weights also chosen on the tuning slice):
+
+```{r comparison-table}
+comparison[, .(Model = model, `Tuning accuracy` = percent(dev_accuracy, accuracy = 0.1))]
+```
+
+Interpolation won, so that's what the model uses going forward — blending
+evidence across context lengths captures useful signal that strict backoff
+throws away whenever it commits to a single context length.
+
+```{r model-size-table}
+model_sizes[, .(`N-gram table` = table, `Rows kept` = comma(n_rows),
+                 `Size in memory (MB)` = round(size_mb, 1))]
+```
+
+The resulting four tables together use about
+**`r round(sum(model_sizes$size_mb))` MB** of memory — comfortably within the
+4GB available on the deployment server.
+
+**Is it any good?** We report final numbers on the test slice — data
+touched only for this one measurement, never used to choose any setting
+above, to keep the numbers honest. Taking the first three words of each test
+sentence and asking the model to guess the fourth, the correct word appeared
+in the model's top 3 guesses **`r percent(test_eval$top3_accuracy, accuracy = 0.1)`**
+of the time (pseudo-perplexity: **`r round(test_eval$pseudo_perplexity)`**,
+lower is better; again, a rough diagnostic rather than a directly comparable
+textbook figure, since Stupid Backoff/interpolation scores aren't a properly
+normalized probability distribution). That's a modest improvement over our
+first pass, driven mostly by fixing a bug in how the model chose between
+context lengths and by blending contexts instead of picking just one — a
+reasonable baseline for a model with no linguistic knowledge built in, and
+still room to improve, principally by training on more data than the current
+1,000,000-line sample (see next steps).
+
+## Plan for the Shiny app and next steps
+
+The app itself will be simple from the user's point of view: a text box where
+someone types a partial sentence, and up to three suggested next words appear
+as they type — similar to a phone's predictive keyboard.
+
+Behind the scenes, next steps are to:
+
+- **Train on more data** — the current model uses 1,000,000 sampled lines;
+  the biggest known weakness (many 3-word phrases in new text were never
+  seen during training) would likely improve most from simply learning from
+  more of the >100 million words available, now that the pipeline runs
+  comfortably in memory. Not done in this pass, to keep runtime and model
+  size predictable while other improvements were tested.
+- **Consider more principled smoothing** — Katz backoff with Good-Turing
+  discounting or Kneser-Ney smoothing are more statistically rigorous than
+  Stupid Backoff/interpolation, at real added implementation complexity;
+  worth revisiting if accuracy gains from more data plateau.
+- **Consider a neural language model** as a further-out option — could
+  capture more context and meaning than word counts, but adds heavy new
+  dependencies, longer training time, and latency considerations for a
+  live-typing app on a memory-constrained server, so it's not planned unless
+  simpler improvements stop paying off.
+- **Speed up lookups** — pre-index the tables so a prediction returns
+  effectively instantly as the user types.
+- **Build the app** — wire the model into a Shiny text input with live
+  suggestions, and deploy it within the memory budget confirmed above.
+- **Basic quality guardrails** — keep the profanity filter in place so the
+  app never suggests offensive words, and monitor a few example phrases by
+  hand before wider testing.
