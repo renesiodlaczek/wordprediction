@@ -99,7 +99,7 @@ ui <- page_fillable(
     uiOutput("suggestion_buttons"),
     tags$p(
       class = "text-muted small mt-3",
-      "Model: n-gram linear interpolation (unigram + bigram + trigram + four-gram), tuned on a 1,000,000-line sample of English Twitter/blogs/news text. See report/milestone_report.qmd for methodology and evaluation."
+      "Model: n-gram linear interpolation (unigram + bigram + trigram + four-gram), tuned on a 1,000,000-line sample of English Twitter/blogs/news text."
     )
   )
 )
